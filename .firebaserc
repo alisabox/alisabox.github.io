@@ -1,0 +1,14 @@
+{
+  "targets": {
+    "todo-list-angular-37381": {
+      "hosting": {
+        "todo-list-angular": [
+          "todo-list-angular-37381"
+        ]
+      }
+    }
+  },
+  "projects": {
+    "default": "todo-list-angular-37381"
+  }
+}

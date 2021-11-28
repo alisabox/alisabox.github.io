@@ -1,0 +1,39 @@
+<article id="container" *ngIf="!isDataLoading; else loading">
+  <h1>To-Do List</h1>
+  <h2 *ngIf="todos.length === 0; else hasTasks">Add your first task</h2>
+  <ng-template #hasTasks>
+    <h2>Total tasks: {{ todos.length }}</h2>
+  </ng-template>
+
+  <section id="section--add">
+    <form (submit)="addToDo($event)">
+      <input name="content" #input type="text" (input)="inputHandler(input.value)" required [value]="newTodo"/>
+      <button type="submit">+ Add</button>
+    </form>
+  </section>
+  <div id="list--container">
+    <ul class="list" >
+      <div class="list-item--container" *ngFor="let todo of todos">
+        <input type="checkbox" name="item-check" (click)="toggleDone(todo.id)" [attr.checked]="todo.completed ? '' : null"/>
+        <li>{{ todo.content }}</li>
+        <div class="edit" (click)="editTodo(todo.id)">Edit</div>
+        <div class="delete" (click)="deleteItem(todo.id)">X</div>
+      </div>
+    </ul>
+    <div class="editing-container" *ngIf="editingMode">
+      <input name="content" #inputEdit type="text" (input)="inputEditHandler(inputEdit.value)" required [value]="editingTodo.content" />
+      <div class="update" (click)="updateItem()">Update</div>
+      <div class="close" (click)="closeEditing()">X</div>
+    </div>
+    <div class="alert" *ngIf="showAllert">
+      <p>The data has been changed by another user.</p>
+      <p>Would you like to load the changed data or overwrite?</p>
+      <button class="close" (click)="loadData()">Load data</button>
+      <button class="close" (click)="overwriteData()">Overwrite</button>
+    </div>
+  </div>
+</article>
+
+<ng-template #loading>
+  <h2>Loading...</h2>
+</ng-template>
