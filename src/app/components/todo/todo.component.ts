@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { ToDo } from '../../models/models';
-import { AngularFireDatabase, AngularFireObject } from '@angular/fire/compat/database';
+import { AngularFireObject } from '@angular/fire/compat/database';
 import { ActivatedRoute, Router } from '@angular/router';
+import { FirebaseService } from 'src/app/services/firebase.service';
 
 @Component({
   selector: 'app-todo',
@@ -9,66 +10,43 @@ import { ActivatedRoute, Router } from '@angular/router';
   styleUrls: ['./todo.component.scss']
 })
 export class TodoComponent implements OnInit {
+  public isDataLoading: boolean = true;
+  public todos: ToDo[] = [];
+  public newTodo: string = '';
+  public editingMode: boolean = false;
+  public showAllert: boolean = false;
 
-  isDataLoading: boolean = true; // Показывает лоадер пока данные не загружены
-
-  userId: string = ''; // Переменная,  хранящая айди пользователя
-
-  todos: ToDo[] = []; // переменная, в которой хранятся данные, полученные при загрузке
-  updatedTodos: ToDo[] = []; // перменная, в которой хранятся данные
-
-  newTodo: string = '';
-  deletingTodo: string = '';
-
-  initialEditingTodoState: ToDo = {
+  private _userId: string = '';
+  private _updatedTodos: ToDo[] = [];
+  private _deletingTodo: string = '';
+  private _initialEditingTodoState: ToDo = {
     id: '',
     content: '',
     completed: false
   }
 
-  editingTodo: ToDo = this.initialEditingTodoState;
-
-  editingMode: boolean = false;
-
-  showAllert: boolean = false;
+  public editingTodo: ToDo = this._initialEditingTodoState;
 
   constructor(
-    private db: AngularFireDatabase,
+    private readonly _db: FirebaseService,
     private route: ActivatedRoute,
     private router: Router
-  ) {}
+  ) { }
 
-  ngOnInit(): void {
+  public ngOnInit(): void {
     const url = window.location.href;
-    this.userId = url.split('/').reverse()[0];
-    if (this.userId !== '') {
-      this.db.database.ref(`users/${this.userId}`).once('value', (snapshot) => {
-        if (snapshot.exists()) {
-          this.fetchData();
-        } else {
-          this.router.navigate([`not-found`]);
-        }
-      });
-    } else {
-      this.userId = this.db.database.ref().child(`users`).push().key || '';
-      this.db.database.ref().child(`users/${this.userId}`).push('placeholder');
-      this.router.navigate([`${this.userId}`], { relativeTo: this.route });
-      this.fetchData();
-    }
-  } // При загрузке проверяется путь, по которому зашел пользователь.
-  // Если корень, то создается новый айди пользователя, и он перенаправляется на выделенный адрес
-  // Если в пути указан несуществующий айди, то пользователь перенаправляется на страницу "не найдено"
-  // Если в пути указан существующий айди, то загружаются данные по этому айди
+    this._userId = url.split('/').reverse()[0];
 
-  fetchData() {
-    this.db.database.ref(`users/${this.userId}`).once('value', (snapshot) => {
-      this.getInitialTodos(snapshot.val());
-      this.isDataLoading = false;
-    });
-    this.db.database.ref(`users/${this.userId}`).on('value', (snapshot) => {
-      this.getUpdatedTodos(snapshot.val());
-    });
-  } // Загрузка данных и отдельно подписка на изменения
+    if (this._userId !== '') {
+      this._fetchData(this._userId);
+    } else {
+      this._userId = this._db.createNewId();
+      this.router.navigate([`${this._userId}`], { relativeTo: this.route });
+    }
+    this._db.dataRef$.subscribe((data) => {
+      this.getUpdatedTodos(data);
+    })
+  }
 
   getInitialTodos(data: AngularFireObject<any> | undefined) {
     const fetchedData = data ? Object.values(data) : [];
@@ -77,19 +55,24 @@ export class TodoComponent implements OnInit {
 
   getUpdatedTodos(data: AngularFireObject<any> | undefined) {
     const fetchedData = data ? Object.values(data) : [];
-    this.updatedTodos = fetchedData.filter((item) => item.id);
+    this._updatedTodos = fetchedData.filter((item) => item.id);
   }
 
-  hasConflicts() {
-    if (JSON.stringify(this.todos) === JSON.stringify(this.updatedTodos)) {
+  public hasConflicts() {
+    if (JSON.stringify(this.todos) === JSON.stringify(this._updatedTodos)) {
       return false;
     }
     return true;
-  } // Проверка на соответствие отображенных данных с актуальными данными с сервера
+  }
 
-  // Далее - функции CRUD операций с данными
+  private _fetchData(userId: string) {
+    this._db.fetchDataById(userId).subscribe((data) => {
+      this.getInitialTodos(data);
+      this.isDataLoading = false;
+    });
+  }
 
-  toggleDone (id: string): void {
+  public toggleDone(id: string): void {
     this.todos.map((item) => {
       if (item.id === id) {
         this.editingTodo = Object.assign({
@@ -106,36 +89,35 @@ export class TodoComponent implements OnInit {
     this.overwriteData();
   }
 
-  deleteItem (id: string): void {
+  public deleteItem(id: string): void {
     if (this.hasConflicts()) {
-      this.deletingTodo = id;
+      this._deletingTodo = id;
       this.showAllert = true;
       return;
     }
-    this.db.database.ref(`users/${this.userId}`).child(id).remove();
-    this.fetchData();
+    this._db.deleteToDo(this._userId, id);
+    this._fetchData(this._userId);
   }
 
-  addToDo (event: any) {
+  addToDo(event: any) {
     event.preventDefault();
     if (this.hasConflicts()) {
       this.showAllert = true;
       return;
     }
-    const newKey = this.db.database.ref().child(`users/${this.userId}`).push().key;
-    if (newKey) {
-      this.db.database.ref(`users/${this.userId}`).child(newKey).set({
-        id: newKey,
-        content: this.newTodo,
-        completed: false
-      }).then(() => {
-        this.newTodo = '';
-        this.fetchData();
-      });
-    }
+
+    const newToDo = {
+      id: '',
+      content: this.newTodo,
+      completed: false
+    };
+
+    this._db.addToDo(this._userId, newToDo);
+    this._fetchData(this._userId);
+    this.newTodo = '';
   }
 
-  updateItem () {
+  updateItem() {
     if (this.hasConflicts()) {
       this.showAllert = true;
       return;
@@ -143,41 +125,37 @@ export class TodoComponent implements OnInit {
     this.overwriteData();
   }
 
-  // Загрузка свежих данных, если пользователь решил применить изменения других пользователей
-
-  loadData() {
-    this.fetchData();
+  public loadData() {
+    this._db.fetchDataById(this._userId).subscribe((data) => {
+      this.getInitialTodos(data);
+      this.isDataLoading = false;
+    });
     this.editingMode = false;
     this.showAllert = false;
   }
 
-  // Перезапись данных сервера данными пользователя
 
   overwriteData() {
-    const newTodos: ToDo[] = this.todos.map((item) => Object.assign({...item}));
+    const newTodos: ToDo[] = this.todos.map((item) => Object.assign({ ...item }));
     const index = newTodos.findIndex((item) => item.id === this.editingTodo.id);
     newTodos[index] = this.editingTodo;
 
     if (this.editingTodo.id === '') {
-      this.db.database.ref(`users/${this.userId}`).child(this.deletingTodo).remove().then(() => {
-        this.deletingTodo = '';
-        this.fetchData();
-      })
+      this._db.deleteToDo(this._userId, this._deletingTodo);
+      this._fetchData(this._userId);
     }
     newTodos.map((item) => {
-      this.db.database.ref(`users/${this.userId}/${item.id}`).set(item).then(() => {
-        this.editingTodo = this.initialEditingTodoState;
-        this.fetchData();
-        this.deletingTodo = '';
-        this.editingMode = false;
-        this.showAllert = false;
-      })
+      this._db.replaceById(this._userId, item);
     })
+    this.editingTodo = this._initialEditingTodoState;
+    this._fetchData(this._userId);
+    this._deletingTodo = '';
+    this.editingMode = false;
+    this.showAllert = false;
   }
 
-  // Хэндлеры инпутов, открытия и закрытия формы редактирования
 
-  editTodo (id: string): void {
+  editTodo(id: string): void {
     this.editingMode = true;
 
     this.todos.map((item) => {
@@ -189,15 +167,15 @@ export class TodoComponent implements OnInit {
     })
   }
 
-  closeEditing (): void {
+  closeEditing(): void {
     this.editingMode = !this.editingMode;
   }
 
-  inputHandler (value: string): void {
+  inputHandler(value: string): void {
     this.newTodo = value;
   }
 
-  inputEditHandler (value: string): void {
+  inputEditHandler(value: string): void {
     this.editingTodo.content = value;
   }
 }

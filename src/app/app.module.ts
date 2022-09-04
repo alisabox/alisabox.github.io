@@ -1,14 +1,13 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { HttpClientModule } from '@angular/common/http';
-
-import { AngularFireModule } from '@angular/fire/compat';
 import { environment } from '../environments/environment';
-
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { TodoComponent } from './components/todo/todo.component';
 import { NotFoundComponent } from './components/not-found/not-found.component';
+import { initializeApp, provideFirebaseApp } from '@angular/fire/app';
+import { FirebaseService } from './services/firebase.service';
 
 @NgModule({
   declarations: [
@@ -20,9 +19,11 @@ import { NotFoundComponent } from './components/not-found/not-found.component';
     BrowserModule,
     AppRoutingModule,
     HttpClientModule,
-    AngularFireModule.initializeApp(environment.firebase)
+    provideFirebaseApp(() => initializeApp(environment.firebase)),
   ],
-  providers: [],
+  providers: [
+    FirebaseService,
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

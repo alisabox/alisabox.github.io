@@ -110,8 +110,8 @@
             "prerender": false,
             "ssr": false,
             "browserTarget": "todo-list-angular:build:production",
-            "firebaseProject": "todo-list-angular-37381",
-            "firebaseHostingSite": "todo-list-angular-37381"
+            "firebaseProject": "todo-list-angular-4d7c7",
+            "firebaseHostingSite": "todo-list-angular-4d7c7"
           }
         }
       }
