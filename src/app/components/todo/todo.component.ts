@@ -1,21 +1,23 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { ToDo } from '../../models/models';
 import { AngularFireObject } from '@angular/fire/compat/database';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FirebaseService } from 'src/app/services/firebase.service';
+import { ReplaySubject, takeUntil } from 'rxjs';
 
 @Component({
   selector: 'app-todo',
   templateUrl: './todo.component.html',
   styleUrls: ['./todo.component.scss']
 })
-export class TodoComponent implements OnInit {
+export class TodoComponent implements OnInit, OnDestroy {
   public isDataLoading: boolean = true;
   public todos: ToDo[] = [];
   public newTodo: string = '';
   public editingMode: boolean = false;
   public showAllert: boolean = false;
 
+  private _destoy$: ReplaySubject<boolean> = new ReplaySubject();
   private _userId: string = '';
   private _updatedTodos: ToDo[] = [];
   private _deletingTodo: string = '';
@@ -43,33 +45,32 @@ export class TodoComponent implements OnInit {
       this._userId = this._db.createNewId();
       this.router.navigate([`${this._userId}`], { relativeTo: this.route });
     }
-    this._db.dataRef$.subscribe((data) => {
-      this.getUpdatedTodos(data);
-    })
+    this._db.dataRef$
+      .pipe(takeUntil(this._destoy$))
+      .subscribe((data) => {
+        this._getUpdatedTodos(data);
+      })
   }
 
-  getInitialTodos(data: AngularFireObject<any> | undefined) {
-    const fetchedData = data ? Object.values(data) : [];
-    this.todos = fetchedData.filter((item) => item.id);
+  public ngOnDestroy(): void {
+    this._destoy$.next(true);
+    this._destoy$.complete();
   }
 
-  getUpdatedTodos(data: AngularFireObject<any> | undefined) {
-    const fetchedData = data ? Object.values(data) : [];
-    this._updatedTodos = fetchedData.filter((item) => item.id);
-  }
-
-  public hasConflicts() {
+  public hasConflicts(): boolean {
     if (JSON.stringify(this.todos) === JSON.stringify(this._updatedTodos)) {
       return false;
     }
     return true;
   }
 
-  private _fetchData(userId: string) {
-    this._db.fetchDataById(userId).subscribe((data) => {
-      this.getInitialTodos(data);
-      this.isDataLoading = false;
-    });
+  private _fetchData(userId: string): void {
+    this._db.fetchDataById(userId)
+      .pipe(takeUntil(this._destoy$))
+      .subscribe((data) => {
+        this._getInitialTodos(data);
+        this.isDataLoading = false;
+      });
   }
 
   public toggleDone(id: string): void {
@@ -99,7 +100,7 @@ export class TodoComponent implements OnInit {
     this._fetchData(this._userId);
   }
 
-  addToDo(event: any) {
+  public addToDo(event: any): void {
     event.preventDefault();
     if (this.hasConflicts()) {
       this.showAllert = true;
@@ -117,7 +118,7 @@ export class TodoComponent implements OnInit {
     this.newTodo = '';
   }
 
-  updateItem() {
+  public updateItem(): void {
     if (this.hasConflicts()) {
       this.showAllert = true;
       return;
@@ -125,17 +126,20 @@ export class TodoComponent implements OnInit {
     this.overwriteData();
   }
 
-  public loadData() {
-    this._db.fetchDataById(this._userId).subscribe((data) => {
-      this.getInitialTodos(data);
-      this.isDataLoading = false;
-    });
+  public loadData(): void {
+    this._db.fetchDataById(this._userId)
+      .pipe(takeUntil(this._destoy$))
+      .subscribe((data) => {
+        this._getInitialTodos(data);
+        this.isDataLoading = false;
+      });
+
     this.editingMode = false;
     this.showAllert = false;
   }
 
 
-  overwriteData() {
+  public overwriteData(): void {
     const newTodos: ToDo[] = this.todos.map((item) => Object.assign({ ...item }));
     const index = newTodos.findIndex((item) => item.id === this.editingTodo.id);
     newTodos[index] = this.editingTodo;
@@ -155,7 +159,7 @@ export class TodoComponent implements OnInit {
   }
 
 
-  editTodo(id: string): void {
+  public editTodo(id: string): void {
     this.editingMode = true;
 
     this.todos.map((item) => {
@@ -167,15 +171,25 @@ export class TodoComponent implements OnInit {
     })
   }
 
-  closeEditing(): void {
+  public closeEditing(): void {
     this.editingMode = !this.editingMode;
   }
 
-  inputHandler(value: string): void {
+  public inputHandler(value: string): void {
     this.newTodo = value;
   }
 
-  inputEditHandler(value: string): void {
+  public inputEditHandler(value: string): void {
     this.editingTodo.content = value;
+  }
+
+  private _getInitialTodos(data: AngularFireObject<any> | undefined): void {
+    const fetchedData = data ? Object.values(data) : [];
+    this.todos = fetchedData.filter((item) => item.id);
+  }
+
+  private _getUpdatedTodos(data: AngularFireObject<any> | undefined): void {
+    const fetchedData = data ? Object.values(data) : [];
+    this._updatedTodos = fetchedData.filter((item) => item.id);
   }
 }
