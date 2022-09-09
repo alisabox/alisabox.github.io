@@ -1,10 +1,10 @@
-## Что здесь?
+## What's here?
 
-Простой todo-list, который позволяет создавать, изменять и удалять задачи, а также работать совместно с другими пользователями над одним списком.
+Simple todo-list that allows creating, updating and deleting tasks as well as collaborate with other users.
 
-## Как запустить код?
+## How to run the code?
 
-Открыть терминал и выполнить последовательно команды:
+Open the terminal and run the following commands:
 
 ```
 git clone git@github.com:alisabox/todogular.git
